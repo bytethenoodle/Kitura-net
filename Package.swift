@@ -19,10 +19,10 @@ import PackageDescription
 let package = Package(
     name: "Kitura-net",
     targets: [
-        Target(name: "KituraNet", dependencies: ["CHTTPParser"]),
-        Target(name: "CHTTPParser", dependencies: [])
+        Target(name: "KituraNet"),
     ],
     dependencies: [
+        .Package(url: "https://github.com/IBM-Swift/CHTTPParser.git", majorVersion: 0, minor: 5),
         .Package(url: "https://github.com/IBM-Swift/LoggerAPI.git", majorVersion: 1, minor: 7),
         .Package(url: "https://github.com/IBM-Swift/BlueSocket.git", majorVersion: 0, minor: 12),
         .Package(url: "https://github.com/IBM-Swift/CCurl.git", majorVersion: 0, minor: 4),
