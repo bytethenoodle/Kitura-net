@@ -46,6 +46,9 @@ public class HTTPServer: Server {
     /// Maximum number of pending connections
     private let maxPendingConnections = 100
 
+    /// Controls the maximum number of requests per Keep-Alive connection.
+    public var keepAliveState: KeepAliveState = .unlimited
+    
     /// Incoming socket handler
     private var socketManager: IncomingSocketManager?
 
@@ -197,10 +200,14 @@ public class HTTPServer: Server {
                 
                 if let incomingSocketProcessorCreator = HTTPServer.incomingSocketProcessorCreatorRegistry[negotiatedProtocol] {
                     let serverDelegate = delegate ?? HTTPServer.dummyServerDelegate
-                    let incomingSocketProcessor =
-                        incomingSocketProcessorCreator.createIncomingSocketProcessor(socket: clientSocket,
-                                                                                     using: serverDelegate)
-                    socketManager.handle(socket: clientSocket, processor: incomingSocketProcessor)
+                    let incomingSocketProcessor: IncomingSocketProcessor?
+                    switch incomingSocketProcessorCreator {
+                    case let creator as HTTPIncomingSocketProcessorCreator:
+                        incomingSocketProcessor = creator.createIncomingSocketProcessor(socket: clientSocket, using: serverDelegate, keepalive: self.keepAliveState)
+                    default:
+                        incomingSocketProcessor = incomingSocketProcessorCreator.createIncomingSocketProcessor(socket: clientSocket, using: serverDelegate)
+                    }
+                    socketManager.handle(socket: clientSocket, processor: incomingSocketProcessor!)
                 }
                 else {
                     Log.error("Negotiated protocol \(negotiatedProtocol) not supported on this server")

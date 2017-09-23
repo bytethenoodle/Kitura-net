@@ -49,11 +49,11 @@ public class IncomingHTTPSocketProcessor: IncomingSocketProcessor {
     ///HTTP Parser
     private let httpParser: HTTPParser
     
-    /// The number of remaining requests that will be allowed on the socket being handled by this handler
-    private(set) var numberOfRequests = 100
+    /// Controls the number of requests that may be sent on this connection.
+    private(set) var keepAliveState: KeepAliveState
     
     /// Should this socket actually be kept alive?
-    var isKeepAlive: Bool { return clientRequestedKeepAlive && numberOfRequests > 0 }
+    var isKeepAlive: Bool { return clientRequestedKeepAlive && keepAliveState.keepAlive() }
     
     let socket: Socket
     
@@ -68,10 +68,11 @@ public class IncomingHTTPSocketProcessor: IncomingSocketProcessor {
     /// Location in the buffer to start parsing from
     private var parseStartingFrom = 0
     
-    init(socket: Socket, using: ServerDelegate) {
+    init(socket: Socket, using: ServerDelegate, keepalive: KeepAliveState) {
         delegate = using
         self.httpParser = HTTPParser(isRequest: true)
         self.socket = socket
+        self.keepAliveState = keepalive
     }
     
     /// Process data read from the socket. It is either passed to the HTTP parser or
@@ -252,7 +253,7 @@ public class IncomingHTTPSocketProcessor: IncomingSocketProcessor {
     /// A socket can be kept alive for future requests. Set it up for future requests and mark how long it can be idle.
     func keepAlive() {
         state = .reset
-        numberOfRequests -= 1
+        keepAliveState.decrement()
         inProgress = false
         keepAliveUntil = Date(timeIntervalSinceNow: IncomingHTTPSocketProcessor.keepAliveTimeout).timeIntervalSinceReferenceDate
         handler?.handleBufferedReadData()
@@ -263,6 +264,16 @@ class HTTPIncomingSocketProcessorCreator: IncomingSocketProcessorCreator {
     public let name = "http/1.1"
     
     public func createIncomingSocketProcessor(socket: Socket, using: ServerDelegate) -> IncomingSocketProcessor {
-        return IncomingHTTPSocketProcessor(socket: socket, using: using)
+        return IncomingHTTPSocketProcessor(socket: socket, using: using, keepalive: .unlimited)
+    }
+    
+    /// Create an instance of `IncomingHTTPSocketProcessor` for use with new incoming sockets.
+    ///
+    /// - Parameter socket: The new incoming socket.
+    /// - Parameter using: The `ServerDelegate` the HTTPServer is working with, which should be used
+    ///                   by the created `IncomingSocketProcessor`, if it works with `ServerDelegate`s.
+    /// - Parameter keepalive: The `KeepAliveState` for this connection (limited, unlimited or disabled)
+    func createIncomingSocketProcessor(socket: Socket, using: ServerDelegate, keepalive: KeepAliveState) -> IncomingSocketProcessor {
+        return IncomingHTTPSocketProcessor(socket: socket, using: using, keepalive: keepalive)
     }
 }
