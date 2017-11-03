@@ -26,6 +26,7 @@ class KituraNetTest: XCTestCase {
 
     static let useSSLDefault = true
     static let portDefault = 8080
+    static let portReuseDefault = false
 
     var useSSL = useSSLDefault
     var port = portDefault
@@ -44,6 +45,8 @@ class KituraNetTest: XCTestCase {
                                             usingSelfSignedCerts: true, cipherSuite: nil)
         #endif
     }()
+    
+    static let clientSSLConfig = SSLService.Configuration(withCipherSuite: nil, clientAllowsSelfSignedCertificates: true)
 
     private static let initOnce: () = PrintLogger.use(colored: true)
 
@@ -54,22 +57,26 @@ class KituraNetTest: XCTestCase {
     func doTearDown() {
     }
 
-    func performServerTest(_ delegate: ServerDelegate?, port: Int = portDefault, useSSL: Bool = useSSLDefault,
+    func startServer(_ delegate: ServerDelegate?, port: Int = portDefault, useSSL: Bool = useSSLDefault, allowPortReuse: Bool = portReuseDefault) throws -> HTTPServer {
+        
+        let server = HTTP.createServer()
+        server.delegate = delegate
+        server.allowPortReuse = allowPortReuse
+        if useSSL {
+            server.sslConfig = KituraNetTest.sslConfig
+        }
+        try server.listen(on: port)
+        return server
+    }
+    
+    func performServerTest(_ delegate: ServerDelegate?, port: Int = portDefault, useSSL: Bool = useSSLDefault, allowPortReuse: Bool = portReuseDefault,
                            line: Int = #line, asyncTasks: (XCTestExpectation) -> Void...) {
 
         do {
             self.useSSL = useSSL
             self.port = port
 
-            let server: HTTPServer
-            if useSSL {
-                server = HTTP.createServer()
-                server.delegate = delegate
-                server.sslConfig = KituraNetTest.sslConfig
-                try server.listen(on: port)
-            } else {
-                server = try HTTPServer.listen(on: port, delegate: delegate)
-            }
+            let server: HTTPServer = try startServer(delegate, port: port, useSSL: useSSL, allowPortReuse: allowPortReuse)
             defer {
                 server.stop()
             }
@@ -91,13 +98,14 @@ class KituraNetTest: XCTestCase {
         }
     }
 
-    func performFastCGIServerTest(_ delegate: ServerDelegate?, port: Int = portDefault,
+    func performFastCGIServerTest(_ delegate: ServerDelegate?, port: Int = portDefault, allowPortReuse: Bool = portReuseDefault,
                                   line: Int = #line, asyncTasks: (XCTestExpectation) -> Void...) {
 
         do {
             self.port = port
 
             let server = try FastCGIServer.listen(on: port, delegate: delegate)
+            server.allowPortReuse = allowPortReuse
             defer {
                 server.stop()
             }

@@ -336,7 +336,8 @@ public class ClientRequest {
 
         let invoker = CurlInvoker(handle: handle!, maxRedirects: maxRedirects)
         invoker.delegate = self
-        response = ClientResponse()
+        let skipBody = (method.uppercased() == "HEAD")
+        response = ClientResponse(skipBody: skipBody)
         
         var code = invoker.invoke()
         guard code == CURLE_OK else {
@@ -415,6 +416,10 @@ public class ClientRequest {
                 curlHelperSetOptInt(handle!, CURLOPT_INFILESIZE, count)
             case "HEAD":
                 curlHelperSetOptBool(handle!, CURLOPT_NOBODY, CURL_TRUE)
+            case "PATCH":
+                curlHelperSetOptString(handle!, CURLOPT_CUSTOMREQUEST, methodUpperCase)
+                curlHelperSetOptBool(handle!, CURLOPT_UPLOAD, CURL_TRUE)
+                curlHelperSetOptInt(handle!, CURLOPT_INFILESIZE, count)
             default:
                 curlHelperSetOptString(handle!, CURLOPT_CUSTOMREQUEST, methodUpperCase)
         }
